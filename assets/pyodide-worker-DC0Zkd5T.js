@@ -11,6 +11,5 @@ var Ne=(e,t)=>()=>(t||e((t={exports:{}}).exports,t),t.exports);var Te=Ne((Ue,L)=
     completed_prompts = js.self.completedPrompts.to_py()
     if prompt_id in completed_prompts:
       return completed_prompts[prompt_id]
-    print("hb")
-    await self.sl()
+    time.sleep(0.1)
 `,{globals:i,locals:i});try{this.currentExecutionId=t.payload.executionId,await r.runPythonAsync(t.payload.code,{globals:i,locals:i})}catch(n){if(n instanceof Error&&n.name=="PythonError"){const s=`\x1B[31m${n.message}\x1B[0m`;this.sendMessage({workerId:this.getId(),type:"write_stderr",payload:{executionId:this.currentExecutionId,buffer:s}})}else throw n}finally{this.currentExecutionId=null,i.destroy(),o.destroy()}this.sendMessage({workerId:this.getId(),type:"execution_stopped",payload:{executionId:t.payload.executionId}})}async processPromptReply(t){self.completedPrompts[t.payload.promptId]=t.payload.reply}handlePrompt(t){const r=crypto.randomUUID();return this.sendMessage({workerId:this.getId(),type:"prompt",payload:{executionId:this.currentExecutionId,promptId:r,message:t}}),r}async processStopExecution(t){self.stoppedExecutions.push(t.payload.executionId)}}new Le});export default Te();

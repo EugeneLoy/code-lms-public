@@ -17,7 +17,7 @@ self.addEventListener("fetch", event => {
 
     if (value !== undefined) {
 
-      const code = value + "\n\nconsole.log('Program exited.');\n\n"
+      const code = value
     
       event.respondWith(
         new Response(code, {

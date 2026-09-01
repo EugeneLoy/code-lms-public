@@ -92,6 +92,9 @@
             navigator.serviceWorker.ready.then(() => {
                 const script = document.createElement("script");
                 script.src = "/main.js";
+                script.addEventListener('load', () => {
+                    console.log('\nProgram exited.');
+                });
                 document.head.appendChild(script);
             });
         </script>

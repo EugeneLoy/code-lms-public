@@ -1,17 +1,13 @@
-const content = new Map();
+let content = new Map();
 
 self.addEventListener("message", event => {
   const dict = event.data || {};
 
-  for (const [path, value] of Object.entries(dict)) {
-    if (path && value !== undefined) {
-      content.set(path, value);
-    }
-  }
+  content = new Map(
+    Object.entries(dict).filter(([path, value]) => path && value !== undefined)
+  );
 
-  if (Object.keys(dict).length > 0) {
-    console.log(`[mock-content-service-worker] message: registered ${Object.keys(dict).length} resource(s): ${Object.keys(dict).join(", ")}`, { event });
-  }
+  console.log(`[mock-content-service-worker] message: replaced content store with ${content.size} resource(s): ${[...content.keys()].join(", ")}`, { event });
 });
 
 self.addEventListener("fetch", event => {

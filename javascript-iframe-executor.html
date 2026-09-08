@@ -77,7 +77,17 @@
             // --- Unhandled error / rejection capture ---
 
             window.addEventListener('error', (event) => {
-                appendEntry('error', [`${event.error?.stack ?? event.message}`]);
+                // TODO check correctness and move
+                function errorEventToErrorMessage(event) {
+                    let message = event.error?.stack ? "Uncaught " + event.error?.stack : event.message
+                    if (event.error instanceof SyntaxError && event.filename?.endsWith('main.js')) {
+                        message += `\n    at ${event.filename}:${event.lineno}:${event.colno}`;
+                    } else if (!(event.error instanceof Error) && event.filename?.endsWith('main.js')) {
+                        message += `\n    at ${event.filename}:${event.lineno}:${event.colno}`;
+                    }
+                    return message
+                }
+                appendEntry('error', [errorEventToErrorMessage(event)]);                
             });
 
             window.addEventListener('unhandledrejection', (event) => {

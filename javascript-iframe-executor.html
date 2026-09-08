@@ -77,7 +77,7 @@
             // --- Unhandled error / rejection capture ---
 
             window.addEventListener('error', (event) => {
-                // TODO check correctness and move
+                // TODO check correctness
                 function errorEventToErrorMessage(event) {
                     let message = event.error?.stack ? "Uncaught " + event.error?.stack : event.message
                     if (event.error instanceof SyntaxError && event.filename?.endsWith('main.js')) {
@@ -87,7 +87,13 @@
                     }
                     return message
                 }
-                appendEntry('error', [errorEventToErrorMessage(event)]);                
+                const errorMessage = errorEventToErrorMessage(event)
+
+                appendEntry('error', [errorMessage]);                
+
+                if (event.filename.endsWith("/main.js")) {
+                    window._codeLms.onMainJsError(errorMessage, event.lineno)
+                }
             });
 
             window.addEventListener('unhandledrejection', (event) => {

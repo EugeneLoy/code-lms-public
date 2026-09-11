@@ -37,91 +37,10 @@
             .entry-warn  { color: #f1fa8c; }
             .entry-error { color: #ff5555; }
         </style>
+      <script type="module" crossorigin src="/assets/javascript_iframe_executor-CD6_hFvx.js"></script>
+      <link rel="modulepreload" crossorigin href="/assets/_commonjsHelpers-C5lxYuLu.js">
     </head>
 
     <body>
-        <script>
-            window._codeLms = {};
-
-            // --- Console output capture ---
-            function formatArgs(args) {
-                return args.map(a => {
-                    if (typeof a === 'string') return a;
-                    try { return JSON.stringify(a, null, 2); } catch (_) { return String(a); }
-                }).join(' ');
-            }
-
-            function appendEntry(level, args) {
-                const el = document.createElement('div');
-                el.className = 'entry entry-' + level;
-                el.textContent = formatArgs(args);
-                document.body.appendChild(el);
-            }
-
-            const _log   = console.log.bind(console);
-            const _warn  = console.warn.bind(console);
-            const _error = console.error.bind(console);
-
-            console.log = function(...args) {
-                appendEntry('log', args);
-            };
-
-            console.warn = function(...args) {
-                appendEntry('warn', args);
-            };
-
-            console.error = function(...args) {
-                appendEntry('error', args);
-            };
-
-            // --- Unhandled error / rejection capture ---
-
-            window.addEventListener('error', (event) => {
-                // TODO check correctness
-                function errorEventToErrorMessage(event) {
-                    let message = event.error?.stack ? "Uncaught " + event.error?.stack : event.message
-                    if (event.error instanceof SyntaxError && event.filename?.endsWith('main.js')) {
-                        message += `\n    at ${event.filename}:${event.lineno}:${event.colno}`;
-                    } else if (!(event.error instanceof Error) && event.filename?.endsWith('main.js')) {
-                        message += `\n    at ${event.filename}:${event.lineno}:${event.colno}`;
-                    }
-                    return message
-                }
-                const errorMessage = errorEventToErrorMessage(event)
-
-                appendEntry('error', [errorMessage]);                
-
-                if (event.filename.endsWith("/main.js")) {
-                    window._codeLms.onMainJsError(errorMessage, event.lineno)
-                }
-            });
-
-            window.addEventListener('unhandledrejection', (event) => {
-                const reason = event.reason;
-                const text = reason instanceof Error
-                    ? `${reason.stack ?? reason.message}`
-                    : `${String(reason)}`;
-                appendEntry('error', [text]);
-            });
-
-            window._codeLms.onMainJsLoad = (event) => {
-                console.log('\nProgram exited.');
-            };
-
-            // --- Load injected script via service worker ---
-            window._codeLms.run = async () => {
-                await navigator.serviceWorker.ready
-
-                const script = document.createElement("script");
-                script.src = "/main.js";
-                
-                script.addEventListener('load', (event) => { 
-                    window._codeLms.onMainJsLoad(event);
-                });
-
-                document.head.appendChild(script);
-            }
-
-        </script>
     </body>
 </html>

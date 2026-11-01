@@ -806,11 +806,15 @@ export async function initialize(loadPath, rootElement) {
       console.log("[tkinter-wasm/runPython]", "pyodide.runPythonAsync completed");
     } catch (e) {
       if (e instanceof Error && e.name == "PythonError") {
-        const executionError = get_last_execution_error()
-        if (executionError != null) {
-          executionErrorHandler(executionError)
-        } else {
-          throw e;          
+        try {
+          const executionError = get_last_execution_error()
+          if (executionError != null) {
+            executionErrorHandler(executionError)
+          } else {
+            console.warn("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (no last execution error)");
+          }
+        } catch (e) {
+          console.warn("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (error while getting last execution error)", e);
         }
       } else {
           throw e;
@@ -820,7 +824,10 @@ export async function initialize(loadPath, rootElement) {
       // globals.destroy();
       // dict.destroy();
 
-      await resetEnvironment(pyodide, bridge, executionId);
+      const _isSafari = navigator.vendor === 'Apple Computer, Inc.' && /Safari/i.test(navigator.userAgent);
+      if (!_isSafari) {
+        await resetEnvironment(pyodide, bridge, executionId);
+      }
     }
   }
 

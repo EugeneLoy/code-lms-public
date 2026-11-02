@@ -403,6 +403,47 @@ function createBridge() {
       if (typeof svc === "function") svc();
     },
 
+    /** Run one mainloop iteration (JS equivalent of Python's _do_one_tick).
+     *  Returns true if the loop should continue, false if it should stop.
+     *
+     *  Mirrors _do_one_tick() in _tkinter.py:
+     *    - Drains Python callbacks queued by Tcl
+     *    - Pumps Tcl/X11 events once
+     */
+    doOneTick() {
+      // Drain Python callbacks queued by Tcl (button clicks, bindings,
+      // variable traces, after-timers, etc.).
+      bridge.drainCallbacks();
+      // Pump Tcl/X11 events once so that the Emscripten side processes
+      // any pending browser UI events (expose, configure, etc.).
+      bridge.serviceEvents();
+    },
+
+    /** Start a requestAnimationFrame-driven mainloop (Safari path).
+     *  Calls doOneTick() on each rAF frame; stops when doOneTick returns false.
+     *  Returns immediately so the caller is not blocked.
+     *
+     *  Mirrors the _USE_RAF branch in _tkinter.py mainloop().
+     *
+     *  @param {number} threshold  Passed through to doOneTick().
+     */
+    startRafMainloop(threshold) {
+      function rafTick(timestamp) {
+        bridge.doOneTick(threshold)
+        globalThis.requestAnimationFrame(rafTick);
+      }
+      globalThis.requestAnimationFrame(rafTick);
+    },
+
+    /** True when running in Safari (Apple vendor + Safari UA string).
+     *  Used to gate Safari-specific workarounds (rAF mainloop, skip reset). */
+    get isSafari() {
+      return (
+        navigator.vendor === "Apple Computer, Inc." &&
+        /Safari/i.test(navigator.userAgent)
+      );
+    },
+
     // Expose helpers for Python-side use
     _tclQuote: tclQuote,
     _splitTclList: splitTclList,
@@ -555,6 +596,10 @@ function configureTclTkModule(rootElement, loadPath) {
 
       // TKINTER-WASM: publish the bridge only after Tcl is fully live.
       globalThis._tkinter_wasm = createBridge();
+
+      if (globalThis._tkinter_wasm.isSafari) {
+        postRunList.push(() => { globalThis._tkinter_wasm.startRafMainloop()})
+      }
 
       resolve();
     });
@@ -824,9 +869,10 @@ export async function initialize(loadPath, rootElement) {
       // globals.destroy();
       // dict.destroy();
 
-      const _isSafari = navigator.vendor === 'Apple Computer, Inc.' && /Safari/i.test(navigator.userAgent);
-      if (!_isSafari) {
+      if (!bridge.isSafari) {
         await resetEnvironment(pyodide, bridge, executionId);
+      } else {
+        console.info("[tkinter-wasm/runPython] - skipping resetEnvironment (Safari compat mode: mainloop returned early, events handled by startRafMainloop)")
       }
     }
   }

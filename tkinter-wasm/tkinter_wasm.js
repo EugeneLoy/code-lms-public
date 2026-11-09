@@ -86,23 +86,25 @@ builtins._tkinter_wasm = js._tkinter_wasm
 // The PyProxy is kept in a JS-local closure variable; not exposed on the
 // bridge or builtins.
 const CREATE_QUIT_MAIN_LOOP_PYTHON_SCRIPT = `
-import sys
 def _tkinter_wasm_quit_main_loop():
+    import sys
     tkinter_mod = sys.modules.get("_tkinter")
     if tkinter_mod is not None:
         tkinter_mod._tkinter_wasm_quit_main_loop = True
 `
 
 const CREATE_GET_LAST_ERROR_PYTHON_SCRIPT = `
-import sys
-import builtins
 def _tkinter_wasm_get_last_execution_error():
+    import sys
+    import builtins
     import traceback
-    from pyodide.ffi import to_js
+    from pyodide.ffi import to_js, jsnull
     import js
-    if sys.last_type is None:
-        return js.null
+    if sys.last_type is None or sys.last_value is None:
+        return jsnull
     tb = sys.last_traceback
+    if tb is None:
+        return jsnull
     error_file = None
     error_line = None
     # Walk traceback to find the innermost frame from "main.py"
@@ -115,13 +117,11 @@ def _tkinter_wasm_get_last_execution_error():
             error_line = current.tb_lineno
         current = current.tb_next
     if error_file is None or error_line is None:
-        return js.null
+        return jsnull
     error_message = "".join(
         traceback.format_exception(sys.last_type, sys.last_value, sys.last_traceback)
     )
-    error_type = sys.last_type.__name__ if sys.last_type is not None else None
-    if error_type is None:
-        return js.null
+    error_type = sys.last_type.__name__
     execution_id = _tkinter_wasm.executionId
     return to_js({
         "executionId": execution_id,
@@ -131,7 +131,25 @@ def _tkinter_wasm_get_last_execution_error():
         "errorLine": error_line,
     })
 
-#builtins._tkinter_wasm_get_last_execution_error = _tkinter_wasm_get_last_execution_error
+def _tkinter_wasm_get_last_syntax_execution_error(code):
+    import traceback
+    from pyodide.ffi import to_js, jsnull
+    try:
+        compile(code, "main.py", "exec")
+        return jsnull
+    except SyntaxError as e:
+        error_type = type(e).__name__
+        error_message = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+        error_file = e.filename if e.filename is not None else "main.py"
+        error_line = e.lineno if e.lineno is not None else 1
+        execution_id = _tkinter_wasm.executionId
+        return to_js({
+            "executionId": execution_id,
+            "errorType": error_type,
+            "errorMessage": error_message,
+            "errorFile": error_file,
+            "errorLine": error_line,
+        })
 `
 
 const REDIRECT_PYTHON_OUTPUT_PYTHON_SCRIPT = `
@@ -819,6 +837,7 @@ export async function initialize(loadPath, rootElement) {
 
   const quit_main_loop = pyodide.globals.get("_tkinter_wasm_quit_main_loop");
   const get_last_execution_error = pyodide.globals.get("_tkinter_wasm_get_last_execution_error");
+  const get_last_syntax_execution_error = pyodide.globals.get("_tkinter_wasm_get_last_syntax_execution_error")
 
   console.log("[tkinter-wasm/initialize]", "ready");
 
@@ -851,18 +870,20 @@ export async function initialize(loadPath, rootElement) {
       console.log("[tkinter-wasm/runPython]", "pyodide.runPythonAsync completed");
     } catch (e) {
       if (e instanceof Error && e.name == "PythonError") {
-        try {
-          const executionError = get_last_execution_error()
-          if (executionError != null) {
-            executionErrorHandler(executionError)
-          } else {
-            console.warn("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (no last execution error)");
-          }
-        } catch (e) {
-          console.warn("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (error while getting last execution error)", e);
+        let executionError = get_last_execution_error()
+
+        if (executionError == null) {
+          console.log("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (no last execution error) - attempting to infer syntax execution error");
+          executionError = get_last_syntax_execution_error(code)
+        }
+        
+        if (executionError != null) {
+          executionErrorHandler(executionError)
+        } else {
+          console.warn("[tkinter-wasm/runPython]", "pyodide.runPythonAsync can't infer execution error (no last execution error / syntax execution error)");
         }
       } else {
-          throw e;
+        throw e;
       }
     } finally {
       // TODO memleak for now. figure a good place to release these:
